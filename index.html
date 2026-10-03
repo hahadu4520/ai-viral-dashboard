@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 爆款看板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script src="./dashboard-data.js"></script>
+<style>
+  :root {
+    --bg: #f6f4f0;
+    --card: #fffefc;
+    --ink: #211d19;
+    --ink-2: #5f574e;
+    --ink-3: #8d8479;
+    --hairline: rgba(33,29,25,.09);
+    --accent: #96613f;          /* 摩卡棕:唯一强调色 */
+    --accent-soft: rgba(150,97,63,.1);
+    --shadow: 0 1px 2px rgba(33,29,25,.03), 0 4px 16px rgba(33,29,25,.04);
+    --radius: 14px;
+    --serif: 'Georgia', 'Iowan Old Style', 'Times New Roman', 'Songti SC', 'SimSun', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+  /* ---- 顶部 ---- */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(246,244,240,.82);
+    backdrop-filter: saturate(150%) blur(18px);
+    -webkit-backdrop-filter: saturate(150%) blur(18px);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .nav-inner { max-width: 1060px; margin: 0 auto; padding: 15px 28px; display: flex; align-items: baseline; justify-content: space-between; }
+  .brand { font-family: var(--serif); font-size: 19px; letter-spacing: .02em; }
+  .brand em { font-style: italic; color: var(--accent); }
+  .nav-live { font-size: 12px; color: var(--ink-3); letter-spacing: .04em; display: flex; align-items: center; gap: 7px; }
+  .nav-live .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 44px 28px 90px; }
+
+  /* ---- Hero:报刊刊头风 ---- */
+  .hero { text-align: center; margin-bottom: 36px; }
+  .hero .kicker { font-size: 11.5px; letter-spacing: .32em; color: var(--accent); font-weight: 600; text-transform: uppercase; margin-bottom: 14px; }
+  .hero h1 { font-family: var(--serif); font-size: 40px; font-weight: 500; letter-spacing: .01em; line-height: 1.2; }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero .rule { width: 56px; height: 1px; background: var(--ink); opacity: .3; margin: 18px auto; }
+  .hero p { font-size: 13.5px; color: var(--ink-3); letter-spacing: .06em; }
+
+  /* ---- 统计 ---- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; margin-bottom: 30px; box-shadow: var(--shadow); }
+  .stat { background: var(--card); padding: 20px 8px 18px; text-align: center; }
+  .stat .label { font-size: 11px; letter-spacing: .18em; color: var(--ink-3); margin-bottom: 8px; }
+  .stat .num { font-family: var(--serif); font-size: 30px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .stat .num small { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-left: 3px; font-weight: 400; }
+  .stat.hero-num .num { color: var(--accent); }
+
+  /* ---- 控制栏 ---- */
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 26px; }
+  .search {
+    flex: 1; min-width: 210px; display: flex; align-items: center; gap: 9px;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 10px; padding: 9px 14px;
+    transition: border-color .2s; box-shadow: var(--shadow);
+  }
+  .search:focus-within { border-color: var(--accent); }
+  .search svg { flex-shrink: 0; opacity: .45; }
+  .search input { border: none; outline: none; background: transparent; font-size: 13.5px; width: 100%; color: var(--ink); font-family: inherit; }
+  .select-wrap { position: relative; }
+  select {
+    appearance: none; -webkit-appearance: none;
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 10px;
+    padding: 9px 32px 9px 14px; font-size: 13px; color: var(--ink-2); font-family: inherit;
+    cursor: pointer; box-shadow: var(--shadow); font-weight: 500;
+  }
+  select:hover { color: var(--ink); }
+  .select-wrap::after {
+    content: ''; position: absolute; right: 12px; top: 50%; width: 6px; height: 6px;
+    border-right: 1.4px solid var(--ink-3); border-bottom: 1.4px solid var(--ink-3);
+    transform: translateY(-70%) rotate(45deg); pointer-events: none;
+  }
+  .segmented { display: flex; background: var(--card); border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  .segmented button {
+    border: none; background: transparent; padding: 9px 15px; font-size: 13px; color: var(--ink-3);
+    cursor: pointer; font-family: inherit; font-weight: 500; transition: all .18s; border-left: 1px solid var(--hairline);
+  }
+  .segmented button:first-child { border-left: none; }
+  .segmented button:hover { color: var(--ink); }
+  .segmented button.active { background: var(--ink); color: var(--bg); font-weight: 600; }
+
+  /* ---- 图表 ---- */
+  .charts { display: grid; grid-template-columns: 2fr 3fr; gap: 14px; margin-bottom: 26px; }
+  .chart-box { background: var(--card); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow); height: 300px; }
+  .chart-title { font-family: var(--serif); font-size: 16px; font-weight: 500; }
+  .chart-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; letter-spacing: .05em; }
+
+  /* ---- 列表 ---- */
+  .list-card { background: var(--card); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .list-head { display: flex; justify-content: space-between; align-items: baseline; padding: 22px 28px 16px; border-bottom: 1px solid var(--hairline); }
+  .list-head .t { font-family: var(--serif); font-size: 18px; font-weight: 500; }
+  .list-head .n { font-size: 12px; color: var(--ink-3); letter-spacing: .05em; }
+  .item { display: flex; align-items: baseline; gap: 18px; padding: 16px 28px; border-bottom: 1px solid var(--hairline); transition: background .16s; }
+  .item:last-child { border-bottom: none; }
+  .item:hover { background: rgba(150,97,63,.035); }
+  .rank { font-family: var(--serif); width: 24px; font-size: 15px; color: #cfc8bf; font-weight: 500; text-align: right; flex-shrink: 0; font-style: italic; }
+  .rank.top { color: var(--accent); font-size: 17px; }
+  .score { flex-shrink: 0; min-width: 50px; text-align: center; font-size: 13.5px; font-weight: 600; padding: 4px 9px; border-radius: 7px; font-variant-numeric: tabular-nums; align-self: center; }
+  .score.hi { background: var(--accent); color: #fff; }
+  .score.mid { background: var(--accent-soft); color: var(--accent); }
+  .score.lo { background: rgba(33,29,25,.05); color: var(--ink-3); }
+  .item-main { flex: 1; min-width: 0; }
+  .item-title { font-size: 15px; font-weight: 600; line-height: 1.4; margin-bottom: 6px; letter-spacing: .005em; }
+  .item-title a { color: var(--ink); text-decoration: none; background-image: linear-gradient(var(--accent), var(--accent)); background-size: 0% 1px; background-repeat: no-repeat; background-position: 0 100%; transition: background-size .25s ease, color .2s; }
+  .item:hover .item-title a, .item-title a:hover { color: var(--accent); background-size: 100% 1px; }
+  .item-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); }
+  .tag { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .tag::before { content: '—'; color: var(--accent); opacity: .55; margin-right: 6px; font-weight: 400; }
+  .type-badge { font-size: 10.5px; font-weight: 600; padding: 1.5px 8px; border-radius: 99px; letter-spacing: .04em; }
+  .type-tool { background: var(--accent); color: #fff; }
+  .type-news { background: rgba(33,29,25,.08); color: var(--ink-2); }
+  .type-disc { background: transparent; border: 1px solid var(--hairline); color: var(--ink-3); }
+  .type-cont { background: transparent; border: 1px dashed rgba(33,29,25,.2); color: var(--ink-3); }
+  .reason { font-size: 12.5px; color: var(--ink-2); margin-top: 5px; font-family: var(--serif); font-style: italic; }
+  .footer { text-align: center; margin-top: 34px; font-size: 11.5px; color: #b3aca2; letter-spacing: .12em; }
+
+  @media (max-width: 860px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .charts { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 28px; }
+    .item { padding: 14px 16px; gap: 12px; }
+    .list-head { padding: 18px 16px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="brand">AI 爆款<em>日报</em></div>
+    <div class="nav-live"><span class="pulse"></span><span id="live-info">每日 12:00 更新</span></div>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="kicker">Daily Curation</div>
+    <h1>今日 AI 爆款<em>精选</em></h1>
+    <div class="rule"></div>
+    <p>海外热门平台 · 多渠道抓取 · 规则与 LLM 双重打分</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">精选内容</div><div class="num" id="st-count">–</div></div>
+    <div class="stat"><div class="label">覆盖平台</div><div class="num" id="st-platforms">–</div></div>
+    <div class="stat hero-num"><div class="label">今日最高分</div><div class="num" id="st-max">–</div></div>
+    <div class="stat"><div class="label">报告日期</div><div class="num" id="st-date" style="font-size:22px">–</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#211d19" stroke-width="1.5"/><path d="M11 11L14.5 14.5" stroke="#211d19" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input id="f-search" type="text" placeholder="搜索标题、作者或关键词…">
+    </div>
+    <div class="select-wrap"><select id="f-date"><option value="">全部日期</option></select></div>
+    <div class="select-wrap"><select id="f-platform"><option value="">全部平台</option></select></div>
+    <div class="segmented" id="f-sort">
+      <button data-sort="final_score" class="active">综合</button>
+      <button data-sort="rule">规则</button>
+      <button data-sort="llm">LLM</button>
+      <button data-sort="engagement">互动</button>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-box" id="chart-platform"></div>
+    <div class="chart-box" id="chart-top"></div>
+  </div>
+
+  <div class="list-card">
+    <div class="list-head"><span class="t">内容排行</span><span class="n" id="count"></span></div>
+    <div id="items"></div>
+  </div>
+
+  <div class="footer">AI 爆款抓取工作流 · HACKER NEWS · PRODUCT HUNT · REDDIT · X · 每天 12:00 自动运行</div>
+</div>
+
+<script>
+// 统一暖调中性色阶:同色系不同深浅,保证整体一致
+const NEUTRAL_RAMP = ['#96613f', '#7a6a5c', '#b08e6f', '#5c5147', '#c4a98c', '#453d35', '#d7c3ab', '#8d8479'];
+const PLATFORM_LABEL = {
+  hackernews: 'Hacker News', producthunt: 'Product Hunt', reddit: 'Reddit',
+  twitter: 'X', twitter_tools: 'X', tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', github: 'GitHub Trending',
+};
+const TYPE_META = {
+  tool: { label: '工具', cls: 'type-tool' },
+  news: { label: '资讯', cls: 'type-news' },
+  discussion: { label: '观点', cls: 'type-disc' },
+  controversy: { label: '争议', cls: 'type-cont' },
+};
+const fmt = n => n >= 10000 ? (n / 1000).toFixed(1) + 'k' : (n || 0);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DATA = (window.DASHBOARD_DATA || []);
+
+const $ = id => document.getElementById(id);
+const chartPlatform = echarts.init($('chart-platform'));
+const chartTop = echarts.init($('chart-top'));
+const eng = it => { const m = it.metrics || {}; return (m.likes||0)+(m.upvotes||0)+(m.points||0)+2*(m.comments||0)+3*(m.shares||0)+0.01*(m.views||0); };
+
+function initFilters() {
+  const dates = [...new Set(DATA.map(d => d.date))].sort().reverse();
+  dates.forEach(d => $('f-date').add(new Option(d, d)));
+  const platforms = [...new Set(DATA.map(d => d.platform))];
+  platforms.forEach(p => $('f-platform').add(new Option(PLATFORM_LABEL[p] || p, p)));
+  $('f-date').addEventListener('change', render);
+  $('f-platform').addEventListener('change', render);
+  $('f-search').addEventListener('input', render);
+  $('f-sort').querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    $('f-sort').querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }));
+}
+
+function filtered() {
+  const d = $('f-date').value, p = $('f-platform').value, q = $('f-search').value.trim().toLowerCase();
+  let rows = DATA.filter(it => (!d || it.date === d) && (!p || it.platform === p));
+  if (q) rows = rows.filter(it => `${it.title} ${it.author} ${it.content || ''}`.toLowerCase().includes(q));
+  const sort = document.querySelector('#f-sort button.active').dataset.sort;
+  rows.sort((a, b) =>
+    sort === 'rule' ? (b.rule_score || 0) - (a.rule_score || 0) :
+    sort === 'llm' ? ((b.llm?.score) || 0) - ((a.llm?.score) || 0) :
+    sort === 'engagement' ? eng(b) - eng(a) : (b.final_score || 0) - (a.final_score || 0));
+  return rows;
+}
+
+function render() {
+  const rows = filtered();
+  const activeDate = $('f-date').value || (DATA.length ? [...new Set(DATA.map(d => d.date))].sort().pop() : '–');
+  $('count').textContent = `${rows.length} 条`;
+  $('st-count').innerHTML = rows.length + '<small>条</small>';
+  $('st-platforms').innerHTML = new Set(rows.map(r => r.platform)).size + '<small>个</small>';
+  $('st-max').innerHTML = rows.length ? Math.max(...rows.map(r => r.final_score || 0)).toFixed(1) : '–';
+  $('st-date').textContent = activeDate;
+  $('live-info').textContent = `${new Set(rows.map(r => r.platform)).size} 个平台 · 更新至 ${activeDate}`;
+
+  // 平台分布:同色系环形图
+  const byPlatform = {};
+  rows.forEach(it => byPlatform[it.platform] = (byPlatform[it.platform] || 0) + 1);
+  chartPlatform.setOption({
+    title: { text: '平台分布', subtext: 'Platform Mix', left: 20, top: 14,
+      textStyle: { color: '#211d19', fontSize: 15, fontWeight: 500, fontFamily: 'Georgia, serif' },
+      subtextStyle: { color: '#8d8479', fontSize: 11 } },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} 条 ({d}%)' },
+    series: [{
+      type: 'pie', radius: ['50%', '72%'], center: ['50%', '56%'], padAngle: 2,
+      itemStyle: { borderRadius: 6, borderWidth: 2, borderColor: '#fffefc' },
+      label: { color: '#5f574e', fontSize: 11, formatter: '{b}\n{c} 条' },
+      labelLine: { length: 12, length2: 8, lineStyle: { color: '#cfc8bf' } },
+      emphasis: { scale: true, scaleSize: 5 },
+      data: Object.entries(byPlatform).map(([k, v], i) => ({
+        name: PLATFORM_LABEL[k] || k, value: v, itemStyle: { color: NEUTRAL_RAMP[i % NEUTRAL_RAMP.length] },
+      })),
+    }],
+  });
+
+  // Top 15:单一强调色横条
+  const top15 = rows.slice(0, 15).reverse();
+  chartTop.setOption({
+    title: { text: '综合分 Top 15', subtext: 'Rule 60% · LLM 40%', left: 20, top: 14,
+      textStyle: { color: '#211d19', fontSize: 15, fontWeight: 500, fontFamily: 'Georgia, serif' },
+      subtextStyle: { color: '#8d8479', fontSize: 11 } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 14, right: 46, top: 54, bottom: 6, containLabel: true },
+    xAxis: { type: 'value', max: 100, axisLabel: { color: '#8d8479', fontSize: 10.5 }, splitLine: { lineStyle: { color: 'rgba(33,29,25,.06)' } } },
+    yAxis: { type: 'category', data: top15.map(it => it.title.slice(0, 16) + '…'),
+      axisLabel: { color: '#5f574e', fontSize: 11 }, axisLine: { show: false }, axisTick: { show: false } },
+    series: [{
+      type: 'bar', barMaxWidth: 12,
+      data: top15.map(it => ({
+        value: it.final_score || 0,
+        itemStyle: { color: it.final_score >= 80 ? '#96613f' : '#c4a98c', borderRadius: [0, 6, 6, 0] },
+      })),
+      label: { show: true, position: 'right', color: '#8d8479', fontSize: 10.5, formatter: '{c}' },
+    }],
+  });
+
+  // 列表:平台统一为文字标签,不再用彩色胶囊
+  const html = rows.slice(0, 200).map((it, i) => {
+    const s = it.final_score || 0;
+    const cls = s >= 80 ? 'hi' : s >= 60 ? 'mid' : 'lo';
+    const m = it.metrics || {};
+    const meta = [
+      `<span class="tag">${PLATFORM_LABEL[it.platform] || it.platform}</span>`,
+      TYPE_META[it.content_type] ? `<span class="type-badge ${TYPE_META[it.content_type].cls}">${TYPE_META[it.content_type].label}</span>` : '',
+      it.author ? `<span>${esc(String(it.author).slice(0, 24))}</span>` : '',
+      m.likes || m.upvotes || m.points ? `<span>赞 ${fmt(m.likes || m.upvotes || m.points)}</span>` : '',
+      m.comments ? `<span>评 ${fmt(m.comments)}</span>` : '',
+      m.shares ? `<span>转 ${fmt(m.shares)}</span>` : '',
+      m.views ? `<span>看 ${fmt(m.views)}</span>` : '',
+    ].filter(Boolean).join('');
+    return `<div class="item">
+      <div class="rank ${i < 3 ? 'top' : ''}">${i + 1}</div>
+      <div class="score ${cls}">${s.toFixed(1)}</div>
+      <div class="item-main">
+        <div class="item-title"><a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
+        <div class="item-meta">${meta}</div>
+        ${it.llm?.reason ? `<div class="reason">“${esc(it.llm.reason)}”</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  $('items').innerHTML = html || '<div class="item"><div class="item-main">没有数据。先运行一次抓取:node src/main.js</div></div>';
+}
+
+initFilters();
+render();
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { chartPlatform.resize(); chartTop.resize(); }, 150); });
+</script>
+</body>
+</html>
